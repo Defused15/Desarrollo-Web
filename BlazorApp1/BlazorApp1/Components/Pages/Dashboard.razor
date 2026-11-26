@@ -1,8 +1,9 @@
 @page "/dashboard"
-@using System.Text.Json
 @implements IDisposable
 @inject IJSRuntime JS
 @inject ToastService ToastService
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AppDbContext> DbFactory
 
 <PageTitle>Dashboard</PageTitle>
 
@@ -25,6 +26,14 @@
             </div>
         </div>
     </header>
+
+    @if (!string.IsNullOrEmpty(alertaPagina))
+    {
+        <div class="alert alert-warning alert-dismissible py-2">
+            @alertaPagina
+            <button type="button" class="btn-close" @onclick="() => alertaPagina = null"></button>
+        </div>
+    }
 
     <!-- 2. KPIs calculados con LINQ -->
     <section class="row g-3 mb-4">
@@ -168,20 +177,32 @@
 </div>
 
 @code {
-    // ===== Datos =====
-    private List<CursoItem> Cursos = new()
+    // ===== Datos (vienen de SQLite) =====
+    private List<CursoEntity> Cursos = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        new("DWM-101", "Desarrollo Web y Móvil", "Fundamentos de HTML5, CSS3, Blazor y PWAs multiplataforma.", 28, 50m, "Activo"),
-        new("DWM-102", "Cloud Native & Microservicios", "Despliegues en contenedores Docker y arquitecturas escalables.", 24, 40m, "Activo"),
-        new("DWM-103", "Seguridad y Auditoría Web", "Análisis de vulnerabilidades OWASP y autenticación JWT.", 19, 35m, "En Revisión"),
-        new("DWM-104", "UI/UX & Design Systems", "Prototipado interactivo, accesibilidad WCAG y Figma.", 31, 50m, "Activo")
-    };
+        await CargarCursosAsync();
+    }
+
+    private async Task CargarCursosAsync()
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        Cursos = await db.Cursos
+            .AsNoTracking()
+            .OrderByDescending(c => c.Id)
+            .ToListAsync();
+
+        // Sincronizar los gráficos con los datos frescos de SQLite
+        if (graficosListos)
+            await ActualizarGraficosAsync();
+    }
 
     // ===== Búsqueda y filtro (LINQ) =====
     private string TextoBusqueda = "";
     private string FiltroEstado = "Todos";
 
-    private IEnumerable<CursoItem> CursosFiltrados => Cursos
+    private IEnumerable<CursoEntity> CursosFiltrados => Cursos
         .Where(c => FiltroEstado == "Todos" || c.Estado == FiltroEstado)
         .Where(c => string.IsNullOrWhiteSpace(TextoBusqueda)
                  || c.Nombre.Contains(TextoBusqueda, StringComparison.OrdinalIgnoreCase)
@@ -227,6 +248,9 @@
         ToastService.Notify(new(ToastType.Info, "Temario Adjuntado", $"Archivo: {nombreTemario}"));
     }
 
+    private string? alertaPagina;
+
+    // Alta con control de duplicados
     private async Task GuardarCurso()
     {
         if (string.IsNullOrWhiteSpace(nuevoCurso.Codigo) || string.IsNullOrWhiteSpace(nuevoCurso.Nombre))
@@ -234,51 +258,71 @@
             errorFormulario = "El código y el nombre son obligatorios.";
             return;
         }
-        if (Cursos.Any(c => c.Codigo.Equals(nuevoCurso.Codigo.Trim(), StringComparison.OrdinalIgnoreCase)))
+
+        var entidad = new CursoEntity
         {
-            errorFormulario = $"Ya existe un curso con el código {nuevoCurso.Codigo}.";
+            Codigo = nuevoCurso.Codigo.Trim(),
+            Nombre = nuevoCurso.Nombre.Trim(),
+            Descripcion = nuevoCurso.Descripcion.Trim(),
+            Matriculados = nuevoCurso.Matriculados,
+            PrecioXAlumno = nuevoCurso.PrecioXAlumno,
+            Estado = nuevoCurso.Estado,
+            NombreTemario = nombreTemario
+        };
+
+        try
+        {
+            using var db = await DbFactory.CreateDbContextAsync();
+            db.Cursos.Add(entidad);
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // El índice único de Codigo no deja guardar un código repetido
+            await modalRef.HideAsync();
+            alertaPagina = $"No se ha guardado: ya existe un curso con el código {entidad.Codigo}.";
             return;
         }
 
-        var cursoItem = new CursoItem(
-            nuevoCurso.Codigo.Trim(),
-            nuevoCurso.Nombre.Trim(),
-            nuevoCurso.Descripcion.Trim(),
-            nuevoCurso.Matriculados,
-            nuevoCurso.PrecioXAlumno,
-            nuevoCurso.Estado);
-
-        Cursos.Add(cursoItem);
         await modalRef.HideAsync();
-
-        // Notificación Toast de éxito
         ToastService.Notify(new(ToastType.Success, "¡Curso Creado con Éxito!",
-            $"Se ha incorporado '{cursoItem.Nombre}' al catálogo."));
+            $"Se ha incorporado '{entidad.Nombre}' al catálogo."));
 
         // Reiniciar formulario
         nuevoCurso = new();
         nombreTemario = null;
 
-        await GuardarYActualizarAsync();
+        await CargarCursosAsync();
     }
 
     // ===== Eventos que llegan desde CursoCard =====
+
+    // Modificación: Activo <-> En Revisión
     private async Task AlternarEstado(string codigo)
     {
-        var i = Cursos.FindIndex(c => c.Codigo == codigo);
-        if (i < 0) return;
-        var curso = Cursos[i];
-        // Los record no se modifican: se crea una copia con el estado cambiado
-        Cursos[i] = curso with { Estado = curso.Estado == "Activo" ? "En Revisión" : "Activo" };
-        ToastService.Notify(new(ToastType.Info, "Estado actualizado", $"{codigo} ahora está '{Cursos[i].Estado}'."));
-        await GuardarYActualizarAsync();
+        using var db = await DbFactory.CreateDbContextAsync();
+        var curso = await db.Cursos.FirstOrDefaultAsync(c => c.Codigo == codigo);
+        if (curso == null) return;
+
+        curso.Estado = curso.Estado == "Activo" ? "En Revisión" : "Activo";
+        await db.SaveChangesAsync();
+
+        ToastService.Notify(new(ToastType.Info, "Estado actualizado", $"{codigo} ahora está '{curso.Estado}'."));
+        await CargarCursosAsync();
     }
 
+    // Borrado
     private async Task EliminarCurso(string codigo)
     {
-        Cursos.RemoveAll(c => c.Codigo == codigo);
+        using var db = await DbFactory.CreateDbContextAsync();
+        var curso = await db.Cursos.FirstOrDefaultAsync(c => c.Codigo == codigo);
+        if (curso == null) return;
+
+        db.Cursos.Remove(curso);
+        await db.SaveChangesAsync();
+
         ToastService.Notify(new(ToastType.Danger, "Curso eliminado", $"Se ha eliminado {codigo}."));
-        await GuardarYActualizarAsync();
+        await CargarCursosAsync();
     }
 
     // ===== Gráficos (BlazorBootstrap) =====
@@ -327,10 +371,13 @@
 
     private PieChartOptions OpcionesTarta() => new() { Responsive = true };
 
+    private bool graficosListos;
+
     private async Task InicializarGraficosAsync()
     {
         await barChart.InitializeAsync(DatosBarras(), OpcionesBarras());
         await pieChart.InitializeAsync(DatosTarta(), OpcionesTarta());
+        graficosListos = true;
     }
 
     private async Task ActualizarGraficosAsync()
@@ -340,7 +387,6 @@
     }
 
     // ===== JavaScript Interop =====
-    private const string ClaveStorage = "techmetrics-cursos";
     private bool enLinea = true;
     private DotNetObjectReference<Dashboard>? referenciaDotNet;
 
@@ -348,23 +394,12 @@
     {
         if (!firstRender) return;
 
-        // 1. Cargar los cursos guardados en localStorage (si hay)
-        var json = await JS.InvokeAsync<string?>("dashboardInterop.leerCursos", ClaveStorage);
-        if (!string.IsNullOrEmpty(json))
-        {
-            var guardados = JsonSerializer.Deserialize<List<CursoItem>>(json);
-            if (guardados != null)
-                Cursos = guardados;
-        }
-
-        // 2. Dibujar los gráficos con los datos ya cargados
+        // 1. Dibujar los gráficos (los datos ya vienen de SQLite)
         await InicializarGraficosAsync();
 
-        // 3. Pasar a JS una referencia a este componente para que nos avise de la red
+        // 2. Pasar a JS una referencia a este componente para que nos avise de la red
         referenciaDotNet = DotNetObjectReference.Create(this);
         await JS.InvokeVoidAsync("dashboardInterop.iniciarMonitorRed", referenciaDotNet);
-
-        StateHasChanged();
     }
 
     // Lo llama JavaScript cuando cambia la conexión
@@ -387,14 +422,6 @@
             ToastService.Notify(new(ToastType.Success, "Copiado", texto));
         else
             ToastService.Notify(new(ToastType.Warning, "Error", "No se pudo copiar al portapapeles."));
-    }
-
-    // Guarda en localStorage y refresca los gráficos
-    private async Task GuardarYActualizarAsync()
-    {
-        var json = JsonSerializer.Serialize(Cursos);
-        await JS.InvokeVoidAsync("dashboardInterop.guardarCursos", ClaveStorage, json);
-        await ActualizarGraficosAsync();
     }
 
     public void Dispose()
