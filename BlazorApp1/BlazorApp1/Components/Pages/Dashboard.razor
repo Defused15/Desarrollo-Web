@@ -1,0 +1,89 @@
+﻿
+@page "/dashboard"
+@rendermode InteractiveServer
+
+<PageTitle>Dashboard</PageTitle>
+
+<div class="dashboard">
+    <!-- 1. Header con Flexbox -->
+    <header class="dashboard-header">
+        <div class="logo">
+            <span class="logo-icono">📊</span>
+            <h2>TechMetrics Blazor</h2>
+        </div>
+        <div class="usuario">
+            <div class="usuario-nombre">Usuario</div>
+            <div class="usuario-desc">Descripción</div>
+        </div>
+    </header>
+
+    <!-- 2. KPIs con Flexbox -->
+    <section class="kpi-container">
+        <div class="kpi-card">
+            <div>
+                <div class="kpi-titulo">Ingresos Totales</div>
+                <div class="kpi-valor">€ 48,250</div>
+            </div>
+            <span class="trend positivo">+14%</span>
+        </div>
+        <div class="kpi-card">
+            <div>
+                <div class="kpi-titulo">Nuevos Alumnos</div>
+                <div class="kpi-valor">312</div>
+            </div>
+            <span class="trend positivo">+8%</span>
+        </div>
+        <div class="kpi-card">
+            <div>
+                <div class="kpi-titulo">Incidencias Activas</div>
+                <div class="kpi-valor">5</div>
+            </div>
+            <span class="trend negativo">-3%</span>
+        </div>
+    </section>
+
+    <!-- 3. Catálogo de Cursos con CSS Grid -->
+    <main>
+        <div class="seccion-cabecera">
+            <h3>Cursos Activos del Semestre</h3>
+            <button class="btn-primario" @onclick="NuevoCurso">+ Nuevo Curso</button>
+        </div>
+
+        <div class="cards-grid">
+            @foreach (var curso in Cursos)
+            {
+                <div class="curso-card">
+                    <div class="curso-top">
+                        <span class="@(curso.Estado == "Activo" ? "badge-verde" : "badge-amarillo")">
+                            @curso.Estado
+                        </span>
+                        <small class="curso-codigo">@curso.Codigo</small>
+                    </div>
+                    <h5>@curso.Nombre</h5>
+                    <p>@curso.Descripcion</p>
+                    <div class="curso-pie">
+                        <small>@curso.Matriculados alumnos</small>
+                        <button class="btn-secundario">Ver Detalle</button>
+                    </div>
+                </div>
+            }
+        </div>
+    </main>
+</div>
+
+@code {
+    private record CursoItem(string Codigo, string Nombre, string Descripcion, int Matriculados, string Estado);
+
+    private List<CursoItem> Cursos = new()
+    {
+        new("DWM-101", "Desarrollo Web y Móvil", "Fundamentos de HTML5, CSS3, Blazor y PWAs multiplataforma.", 28, "Activo"),
+        new("DWM-102", "Cloud Native & Microservicios", "Despliegues en contenedores Docker y arquitecturas escalables.", 24, "Activo"),
+        new("DWM-103", "Seguridad y Auditoría Web", "Análisis de vulnerabilidades OWASP y autenticación JWT.", 19, "En Revisión"),
+        new("DWM-104", "UI/UX & Design Systems", "Prototipado interactivo, accesibilidad WCAG y Figma.", 31, "Activo")
+    };
+
+    private void NuevoCurso()
+    {
+        Cursos.Add(new($"DWM-{Cursos.Count + 101}", "Nuevo Módulo Electivo", "Contenido en preparación.", 1, "En Revisión"));
+    }
+}

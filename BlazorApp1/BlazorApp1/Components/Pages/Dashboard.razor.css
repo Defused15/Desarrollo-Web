@@ -1,0 +1,213 @@
+﻿.dashboard {
+    background: #f8fafc;
+    min-height: 100vh;
+    padding: 1.5rem;
+}
+
+/* ===== 1. Header con Flexbox ===== */
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    padding: 1rem 1.5rem;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    margin-bottom: 1.5rem;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+    .logo h2 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+.logo-icono {
+    font-size: 1.5rem;
+}
+
+.usuario {
+    text-align: right;
+}
+
+.usuario-nombre {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.usuario-desc {
+    color: #64748b;
+    font-size: 0.75rem;
+}
+
+/* ===== 2. KPIs con Flexbox ===== */
+.kpi-container {
+    display: flex;
+    flex-wrap: wrap; /* en móvil salta de línea */
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.kpi-card {
+    flex: 1 1 220px; /* crece, encoge, mínimo 220px */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    padding: 1.25rem;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.kpi-titulo {
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+.kpi-valor {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.trend {
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+    .trend.positivo {
+        background: #dcfce7;
+        color: #15803d;
+    }
+
+    .trend.negativo {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+
+/* ===== 3. Rejilla de cursos con CSS Grid ===== */
+.seccion-cabecera {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+    .seccion-cabecera h3 {
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.curso-card {
+    display: flex;
+    flex-direction: column;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    transition: all 0.2s ease;
+}
+
+    /* Micro-interacción: sube un poco y aumenta la sombra */
+    .curso-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    }
+
+.curso-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.curso-codigo {
+    font-family: monospace;
+    color: #94a3b8;
+}
+
+.curso-card h5 {
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.curso-card p {
+    color: #64748b;
+    font-size: 0.875rem;
+    flex-grow: 1; /* empuja el pie abajo */
+}
+
+.curso-pie {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 0.75rem;
+    margin-top: 0.75rem;
+}
+
+/* ===== Badges de estado ===== */
+.badge-verde,
+.badge-amarillo {
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-verde {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.badge-amarillo {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+/* ===== Botones ===== */
+.btn-primario,
+.btn-secundario {
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-primario {
+    background: #2563eb;
+    color: white;
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+}
+
+    .btn-primario:hover {
+        background: #1d4ed8;
+        transform: translateY(-1px);
+    }
+
+.btn-secundario {
+    background: #f1f5f9;
+    color: #334155;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8rem;
+}
+
+    .btn-secundario:hover {
+        background: #e2e8f0;
+    }
