@@ -15,7 +15,7 @@ Aplicación Blazor Web App (.NET 10, renderizado interactivo en servidor) con un
 |---|---|---|
 | 28 oct | Maquetación con CSS aislado: Flexbox en cabecera y KPIs, CSS Grid responsivo en las tarjetas, efectos hover y badges de estado | Hecha |
 | 4 nov | Versión con Bootstrap, componentes `KpiCard` y `CursoCard`, formulario en modal, búsqueda y filtro con LINQ, KPIs en tiempo real y JS Interop (portapapeles, localStorage y estado de la red) | Hecha |
-| 18 nov | BlazorBootstrap: Toasts, gráficos de barras y circular, modal con subida de temario | Pendiente |
+| 18 nov | BlazorBootstrap: Toasts, gráficos de barras y circular, modal con subida de temario | Hecha |
 | 25 nov | Persistencia con Entity Framework Core y SQLite, CRUD completo | Pendiente |
 
 ### Ejecución

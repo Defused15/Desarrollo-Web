@@ -1,8 +1,8 @@
 @page "/dashboard"
-@rendermode InteractiveServer
 @using System.Text.Json
 @implements IDisposable
 @inject IJSRuntime JS
+@inject ToastService ToastService
 
 <PageTitle>Dashboard</PageTitle>
 
@@ -26,11 +26,6 @@
         </div>
     </header>
 
-    @if (!string.IsNullOrEmpty(mensaje))
-    {
-        <div class="alert alert-info py-2">@mensaje</div>
-    }
-
     <!-- 2. KPIs calculados con LINQ -->
     <section class="row g-3 mb-4">
         <div class="col-12 col-md-4">
@@ -50,6 +45,28 @@
                      Valor="@($"€ {IngresosEstimados:N0}")"
                      TrendTexto="+14%"
                      EsPositivo="true" />
+        </div>
+    </section>
+
+    <!-- Gráficos (BlazorBootstrap + Chart.js) -->
+    <section class="row g-3 mb-4">
+        <div class="col-12 col-lg-7">
+            <div class="card p-3 shadow-sm border-0 bg-white h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold mb-0">Distribución de Matriculados por Curso</h6>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Analítica C#</span>
+                </div>
+                <BarChart @ref="barChart" Height="220" />
+            </div>
+        </div>
+        <div class="col-12 col-lg-5">
+            <div class="card p-3 shadow-sm border-0 bg-white h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold mb-0">Ingresos por Curso</h6>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">€</span>
+                </div>
+                <PieChart @ref="pieChart" Height="220" />
+            </div>
         </div>
     </section>
 
@@ -95,62 +112,59 @@
         }
     </main>
 
-    <!-- 4. Modal para nuevo curso -->
-    @if (mostrarModal)
-    {
-        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title fw-bold">Añadir Nuevo Curso</h5>
-                        <button type="button" class="btn-close" @onclick="CerrarModal"></button>
-                    </div>
-                    <div class="modal-body">
-                        @if (!string.IsNullOrEmpty(errorFormulario))
-                        {
-                            <div class="alert alert-danger py-2">@errorFormulario</div>
-                        }
-                        <div class="mb-3">
-                            <label class="form-label small fw-semibold">Código</label>
-                            <input type="text" class="form-control" placeholder="Ej: DWM-105"
-                                   @bind="nuevoCurso.Codigo" />
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-semibold">Nombre del Curso</label>
-                            <input type="text" class="form-control" placeholder="Ej: Diseño de Interfaces"
-                                   @bind="nuevoCurso.Nombre" />
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-semibold">Descripción</label>
-                            <textarea class="form-control" rows="2" placeholder="Breve descripción del curso..."
-                                      @bind="nuevoCurso.Descripcion"></textarea>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label small fw-semibold">Matriculados</label>
-                                <input type="number" class="form-control" @bind="nuevoCurso.Matriculados" />
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label small fw-semibold">Precio por Alumno (€)</label>
-                                <input type="number" step="0.01" class="form-control" @bind="nuevoCurso.PrecioXAlumno" />
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-semibold">Estado</label>
-                            <select class="form-select" @bind="nuevoCurso.Estado">
-                                <option value="Activo">Activo</option>
-                                <option value="En Revisión">En Revisión</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" @onclick="CerrarModal">Cancelar</button>
-                        <button type="button" class="btn btn-primary" @onclick="CrearCurso">Crear Curso</button>
-                    </div>
+    <!-- 4. Modal de BlazorBootstrap para nuevo curso -->
+    <Modal @ref="modalRef" Title="Añadir Nuevo Curso" IsVerticallyCentered="true">
+        <BodyTemplate>
+            @if (!string.IsNullOrEmpty(errorFormulario))
+            {
+                <div class="alert alert-danger py-2">@errorFormulario</div>
+            }
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Código</label>
+                <input type="text" class="form-control" placeholder="Ej: DWM-105"
+                       @bind="nuevoCurso.Codigo" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Nombre del Curso</label>
+                <input type="text" class="form-control" placeholder="Ej: Diseño de Interfaces"
+                       @bind="nuevoCurso.Nombre" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Descripción</label>
+                <textarea class="form-control" rows="2" placeholder="Breve descripción del curso..."
+                          @bind="nuevoCurso.Descripcion"></textarea>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label small fw-semibold">Matriculados</label>
+                    <input type="number" class="form-control" @bind="nuevoCurso.Matriculados" />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label small fw-semibold">Precio por Alumno (€)</label>
+                    <input type="number" step="0.01" class="form-control" @bind="nuevoCurso.PrecioXAlumno" />
                 </div>
             </div>
-        </div>
-    }
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Estado</label>
+                <select class="form-select" @bind="nuevoCurso.Estado">
+                    <option value="Activo">Activo</option>
+                    <option value="En Revisión">En Revisión</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Temario del curso</label>
+                <InputFile class="form-control" OnChange="ProcesarTemario" accept=".pdf,.doc,.docx" />
+                @if (!string.IsNullOrEmpty(nombreTemario))
+                {
+                    <div class="form-text">Adjunto: @nombreTemario</div>
+                }
+            </div>
+        </BodyTemplate>
+        <FooterTemplate>
+            <Button Color="ButtonColor.Secondary" @onclick="CerrarModal">Cancelar</Button>
+            <Button Color="ButtonColor.Primary" @onclick="GuardarCurso">Guardar Curso</Button>
+        </FooterTemplate>
+    </Modal>
 </div>
 
 @code {
@@ -191,19 +205,29 @@
     }
 
     private CursoFormulario nuevoCurso = new();
-    private bool mostrarModal = false;
     private string? errorFormulario;
 
-    private void AbrirModal()
+    // ===== Modal de BlazorBootstrap =====
+    private Modal modalRef = default!;
+    private string? nombreTemario;
+
+    private async Task AbrirModal()
     {
         nuevoCurso = new();
+        nombreTemario = null;
         errorFormulario = null;
-        mostrarModal = true;
+        await modalRef.ShowAsync();
     }
 
-    private void CerrarModal() => mostrarModal = false;
+    private async Task CerrarModal() => await modalRef.HideAsync();
 
-    private async Task CrearCurso()
+    private void ProcesarTemario(InputFileChangeEventArgs e)
+    {
+        nombreTemario = e.File.Name;
+        ToastService.Notify(new(ToastType.Info, "Temario Adjuntado", $"Archivo: {nombreTemario}"));
+    }
+
+    private async Task GuardarCurso()
     {
         if (string.IsNullOrWhiteSpace(nuevoCurso.Codigo) || string.IsNullOrWhiteSpace(nuevoCurso.Nombre))
         {
@@ -216,16 +240,26 @@
             return;
         }
 
-        Cursos.Add(new CursoItem(
+        var cursoItem = new CursoItem(
             nuevoCurso.Codigo.Trim(),
             nuevoCurso.Nombre.Trim(),
             nuevoCurso.Descripcion.Trim(),
             nuevoCurso.Matriculados,
             nuevoCurso.PrecioXAlumno,
-            nuevoCurso.Estado));
+            nuevoCurso.Estado);
 
-        mostrarModal = false;
-        await GuardarEnLocalAsync();
+        Cursos.Add(cursoItem);
+        await modalRef.HideAsync();
+
+        // Notificación Toast de éxito
+        ToastService.Notify(new(ToastType.Success, "¡Curso Creado con Éxito!",
+            $"Se ha incorporado '{cursoItem.Nombre}' al catálogo."));
+
+        // Reiniciar formulario
+        nuevoCurso = new();
+        nombreTemario = null;
+
+        await GuardarYActualizarAsync();
     }
 
     // ===== Eventos que llegan desde CursoCard =====
@@ -236,19 +270,78 @@
         var curso = Cursos[i];
         // Los record no se modifican: se crea una copia con el estado cambiado
         Cursos[i] = curso with { Estado = curso.Estado == "Activo" ? "En Revisión" : "Activo" };
-        await GuardarEnLocalAsync();
+        ToastService.Notify(new(ToastType.Info, "Estado actualizado", $"{codigo} ahora está '{Cursos[i].Estado}'."));
+        await GuardarYActualizarAsync();
     }
 
     private async Task EliminarCurso(string codigo)
     {
         Cursos.RemoveAll(c => c.Codigo == codigo);
-        await GuardarEnLocalAsync();
+        ToastService.Notify(new(ToastType.Danger, "Curso eliminado", $"Se ha eliminado {codigo}."));
+        await GuardarYActualizarAsync();
+    }
+
+    // ===== Gráficos (BlazorBootstrap) =====
+    private BarChart barChart = default!;
+    private PieChart pieChart = default!;
+
+    private static readonly List<string> Colores = new()
+    {
+        "#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#7c3aed", "#0891b2", "#db2777", "#65a30d"
+    };
+
+    private ChartData DatosBarras() => new()
+    {
+        Labels = Cursos.Select(c => c.Codigo).ToList(),
+        Datasets = new List<IChartDataset>
+        {
+            new BarChartDataset
+            {
+                Label = "Matriculados",
+                Data = Cursos.Select(c => (double?)c.Matriculados).ToList(),
+                BackgroundColor = Cursos.Select((c, i) => Colores[i % Colores.Count]).ToList(),
+                BorderWidth = new List<double> { 0 }
+            }
+        }
+    };
+
+    private ChartData DatosTarta() => new()
+    {
+        Labels = Cursos.Select(c => c.Codigo).ToList(),
+        Datasets = new List<IChartDataset>
+        {
+            new PieChartDataset
+            {
+                Label = "Ingresos (€)",
+                Data = Cursos.Select(c => (double?)(c.Matriculados * c.PrecioXAlumno)).ToList(),
+                BackgroundColor = Cursos.Select((c, i) => Colores[i % Colores.Count]).ToList()
+            }
+        }
+    };
+
+    private BarChartOptions OpcionesBarras() => new()
+    {
+        Responsive = true,
+        Plugins = new BarChartPlugins { Legend = new ChartPluginsLegend { Display = false } }
+    };
+
+    private PieChartOptions OpcionesTarta() => new() { Responsive = true };
+
+    private async Task InicializarGraficosAsync()
+    {
+        await barChart.InitializeAsync(DatosBarras(), OpcionesBarras());
+        await pieChart.InitializeAsync(DatosTarta(), OpcionesTarta());
+    }
+
+    private async Task ActualizarGraficosAsync()
+    {
+        await barChart.UpdateAsync(DatosBarras(), OpcionesBarras());
+        await pieChart.UpdateAsync(DatosTarta(), OpcionesTarta());
     }
 
     // ===== JavaScript Interop =====
     private const string ClaveStorage = "techmetrics-cursos";
     private bool enLinea = true;
-    private string? mensaje;
     private DotNetObjectReference<Dashboard>? referenciaDotNet;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -264,7 +357,10 @@
                 Cursos = guardados;
         }
 
-        // 2. Pasar a JS una referencia a este componente para que nos avise de la red
+        // 2. Dibujar los gráficos con los datos ya cargados
+        await InicializarGraficosAsync();
+
+        // 3. Pasar a JS una referencia a este componente para que nos avise de la red
         referenciaDotNet = DotNetObjectReference.Create(this);
         await JS.InvokeVoidAsync("dashboardInterop.iniciarMonitorRed", referenciaDotNet);
 
@@ -286,13 +382,19 @@
 
         var texto = $"{curso.Codigo} - {curso.Nombre} ({curso.Matriculados} alumnos, {curso.PrecioXAlumno:N2} €)";
         var ok = await JS.InvokeAsync<bool>("dashboardInterop.copiarPortapapeles", texto);
-        mensaje = ok ? $"Copiado al portapapeles: {texto}" : "No se pudo copiar al portapapeles.";
+
+        if (ok)
+            ToastService.Notify(new(ToastType.Success, "Copiado", texto));
+        else
+            ToastService.Notify(new(ToastType.Warning, "Error", "No se pudo copiar al portapapeles."));
     }
 
-    private async Task GuardarEnLocalAsync()
+    // Guarda en localStorage y refresca los gráficos
+    private async Task GuardarYActualizarAsync()
     {
         var json = JsonSerializer.Serialize(Cursos);
         await JS.InvokeVoidAsync("dashboardInterop.guardarCursos", ClaveStorage, json);
+        await ActualizarGraficosAsync();
     }
 
     public void Dispose()
