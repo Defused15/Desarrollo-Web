@@ -1,89 +1,302 @@
-﻿
 @page "/dashboard"
 @rendermode InteractiveServer
+@using System.Text.Json
+@implements IDisposable
+@inject IJSRuntime JS
 
 <PageTitle>Dashboard</PageTitle>
 
-<div class="dashboard">
-    <!-- 1. Header con Flexbox -->
-    <header class="dashboard-header">
-        <div class="logo">
-            <span class="logo-icono">📊</span>
-            <h2>TechMetrics Blazor</h2>
+<div class="container-fluid bg-light min-vh-100 p-4">
+
+    <!-- 1. Header -->
+    <header class="d-flex justify-content-between align-items-center bg-white p-3 rounded-3 shadow-sm mb-4">
+        <div class="d-flex align-items-center gap-2">
+            <span class="fs-4">📊</span>
+            <h2 class="h5 mb-0 fw-bold">TechMetrics Blazor</h2>
         </div>
-        <div class="usuario">
-            <div class="usuario-nombre">Usuario</div>
-            <div class="usuario-desc">Descripción</div>
+        <div class="d-flex align-items-center gap-3">
+            <!-- Estado de la red, lo avisa JavaScript -->
+            <span class="badge @(enLinea ? "bg-success" : "bg-danger")">
+                @(enLinea ? "En línea" : "Sin conexión")
+            </span>
+            <div class="text-end">
+                <div class="fw-semibold small">Usuario</div>
+                <div class="text-secondary" style="font-size: 0.75rem;">Descripción</div>
+            </div>
         </div>
     </header>
 
-    <!-- 2. KPIs con Flexbox -->
-    <section class="kpi-container">
-        <div class="kpi-card">
-            <div>
-                <div class="kpi-titulo">Ingresos Totales</div>
-                <div class="kpi-valor">€ 48,250</div>
-            </div>
-            <span class="trend positivo">+14%</span>
+    @if (!string.IsNullOrEmpty(mensaje))
+    {
+        <div class="alert alert-info py-2">@mensaje</div>
+    }
+
+    <!-- 2. KPIs calculados con LINQ -->
+    <section class="row g-3 mb-4">
+        <div class="col-12 col-md-4">
+            <KpiCard Titulo="Total Alumnos"
+                     Valor="@TotalAlumnos.ToString()"
+                     TrendTexto="+8%"
+                     EsPositivo="true" />
         </div>
-        <div class="kpi-card">
-            <div>
-                <div class="kpi-titulo">Nuevos Alumnos</div>
-                <div class="kpi-valor">312</div>
-            </div>
-            <span class="trend positivo">+8%</span>
+        <div class="col-12 col-md-4">
+            <KpiCard Titulo="Activos / En Revisión"
+                     Valor="@($"{CursosActivos} / {CursosEnRevision}")"
+                     TrendTexto="@(CursosEnRevision == 0 ? "Todo OK" : $"{CursosEnRevision} pendientes")"
+                     EsPositivo="@(CursosEnRevision == 0)" />
         </div>
-        <div class="kpi-card">
-            <div>
-                <div class="kpi-titulo">Incidencias Activas</div>
-                <div class="kpi-valor">5</div>
-            </div>
-            <span class="trend negativo">-3%</span>
+        <div class="col-12 col-md-4">
+            <KpiCard Titulo="Ingresos Estimados"
+                     Valor="@($"€ {IngresosEstimados:N0}")"
+                     TrendTexto="+14%"
+                     EsPositivo="true" />
         </div>
     </section>
 
-    <!-- 3. Catálogo de Cursos con CSS Grid -->
+    <!-- 3. Catálogo de cursos -->
     <main>
-        <div class="seccion-cabecera">
-            <h3>Cursos Activos del Semestre</h3>
-            <button class="btn-primario" @onclick="NuevoCurso">+ Nuevo Curso</button>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h3 class="h5 mb-0 fw-bold">Cursos del Semestre</h3>
+            <button class="btn btn-primary btn-sm px-3 shadow-sm" @onclick="AbrirModal">
+                + Nuevo Curso
+            </button>
         </div>
 
-        <div class="cards-grid">
-            @foreach (var curso in Cursos)
+        <!-- Búsqueda y filtro -->
+        <div class="row g-2 mb-3">
+            <div class="col-12 col-md-8">
+                <input class="form-control" placeholder="Buscar por nombre o código..."
+                       @bind="TextoBusqueda" @bind:event="oninput" />
+            </div>
+            <div class="col-12 col-md-4">
+                <select class="form-select" @bind="FiltroEstado">
+                    <option value="Todos">Todos</option>
+                    <option value="Activo">Activo</option>
+                    <option value="En Revisión">En Revisión</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            @foreach (var curso in CursosFiltrados)
             {
-                <div class="curso-card">
-                    <div class="curso-top">
-                        <span class="@(curso.Estado == "Activo" ? "badge-verde" : "badge-amarillo")">
-                            @curso.Estado
-                        </span>
-                        <small class="curso-codigo">@curso.Codigo</small>
-                    </div>
-                    <h5>@curso.Nombre</h5>
-                    <p>@curso.Descripcion</p>
-                    <div class="curso-pie">
-                        <small>@curso.Matriculados alumnos</small>
-                        <button class="btn-secundario">Ver Detalle</button>
-                    </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <CursoCard Curso="curso"
+                               OnAlternarEstado="AlternarEstado"
+                               OnEliminar="EliminarCurso"
+                               OnCopiarCodigo="CopiarCodigo" />
                 </div>
             }
         </div>
+
+        @if (!CursosFiltrados.Any())
+        {
+            <p class="text-secondary mt-3">No hay cursos que coincidan con la búsqueda.</p>
+        }
     </main>
+
+    <!-- 4. Modal para nuevo curso -->
+    @if (mostrarModal)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">Añadir Nuevo Curso</h5>
+                        <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (!string.IsNullOrEmpty(errorFormulario))
+                        {
+                            <div class="alert alert-danger py-2">@errorFormulario</div>
+                        }
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Código</label>
+                            <input type="text" class="form-control" placeholder="Ej: DWM-105"
+                                   @bind="nuevoCurso.Codigo" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Nombre del Curso</label>
+                            <input type="text" class="form-control" placeholder="Ej: Diseño de Interfaces"
+                                   @bind="nuevoCurso.Nombre" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Descripción</label>
+                            <textarea class="form-control" rows="2" placeholder="Breve descripción del curso..."
+                                      @bind="nuevoCurso.Descripcion"></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label small fw-semibold">Matriculados</label>
+                                <input type="number" class="form-control" @bind="nuevoCurso.Matriculados" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label small fw-semibold">Precio por Alumno (€)</label>
+                                <input type="number" step="0.01" class="form-control" @bind="nuevoCurso.PrecioXAlumno" />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Estado</label>
+                            <select class="form-select" @bind="nuevoCurso.Estado">
+                                <option value="Activo">Activo</option>
+                                <option value="En Revisión">En Revisión</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CerrarModal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" @onclick="CrearCurso">Crear Curso</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
-    private record CursoItem(string Codigo, string Nombre, string Descripcion, int Matriculados, string Estado);
-
+    // ===== Datos =====
     private List<CursoItem> Cursos = new()
     {
-        new("DWM-101", "Desarrollo Web y Móvil", "Fundamentos de HTML5, CSS3, Blazor y PWAs multiplataforma.", 28, "Activo"),
-        new("DWM-102", "Cloud Native & Microservicios", "Despliegues en contenedores Docker y arquitecturas escalables.", 24, "Activo"),
-        new("DWM-103", "Seguridad y Auditoría Web", "Análisis de vulnerabilidades OWASP y autenticación JWT.", 19, "En Revisión"),
-        new("DWM-104", "UI/UX & Design Systems", "Prototipado interactivo, accesibilidad WCAG y Figma.", 31, "Activo")
+        new("DWM-101", "Desarrollo Web y Móvil", "Fundamentos de HTML5, CSS3, Blazor y PWAs multiplataforma.", 28, 50m, "Activo"),
+        new("DWM-102", "Cloud Native & Microservicios", "Despliegues en contenedores Docker y arquitecturas escalables.", 24, 40m, "Activo"),
+        new("DWM-103", "Seguridad y Auditoría Web", "Análisis de vulnerabilidades OWASP y autenticación JWT.", 19, 35m, "En Revisión"),
+        new("DWM-104", "UI/UX & Design Systems", "Prototipado interactivo, accesibilidad WCAG y Figma.", 31, 50m, "Activo")
     };
 
-    private void NuevoCurso()
+    // ===== Búsqueda y filtro (LINQ) =====
+    private string TextoBusqueda = "";
+    private string FiltroEstado = "Todos";
+
+    private IEnumerable<CursoItem> CursosFiltrados => Cursos
+        .Where(c => FiltroEstado == "Todos" || c.Estado == FiltroEstado)
+        .Where(c => string.IsNullOrWhiteSpace(TextoBusqueda)
+                 || c.Nombre.Contains(TextoBusqueda, StringComparison.OrdinalIgnoreCase)
+                 || c.Codigo.Contains(TextoBusqueda, StringComparison.OrdinalIgnoreCase));
+
+    // ===== KPIs en tiempo real (LINQ) =====
+    private int TotalAlumnos => Cursos.Sum(c => c.Matriculados);
+    private int CursosActivos => Cursos.Count(c => c.Estado == "Activo");
+    private int CursosEnRevision => Cursos.Count(c => c.Estado == "En Revisión");
+    private decimal IngresosEstimados => Cursos.Sum(c => c.Matriculados * c.PrecioXAlumno);
+
+    // ===== Formulario del modal =====
+    private class CursoFormulario
     {
-        Cursos.Add(new($"DWM-{Cursos.Count + 101}", "Nuevo Módulo Electivo", "Contenido en preparación.", 1, "En Revisión"));
+        public string Codigo { get; set; } = "";
+        public string Nombre { get; set; } = "";
+        public string Descripcion { get; set; } = "";
+        public int Matriculados { get; set; } = 0;
+        public decimal PrecioXAlumno { get; set; } = 0m;
+        public string Estado { get; set; } = "Activo";
+    }
+
+    private CursoFormulario nuevoCurso = new();
+    private bool mostrarModal = false;
+    private string? errorFormulario;
+
+    private void AbrirModal()
+    {
+        nuevoCurso = new();
+        errorFormulario = null;
+        mostrarModal = true;
+    }
+
+    private void CerrarModal() => mostrarModal = false;
+
+    private async Task CrearCurso()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoCurso.Codigo) || string.IsNullOrWhiteSpace(nuevoCurso.Nombre))
+        {
+            errorFormulario = "El código y el nombre son obligatorios.";
+            return;
+        }
+        if (Cursos.Any(c => c.Codigo.Equals(nuevoCurso.Codigo.Trim(), StringComparison.OrdinalIgnoreCase)))
+        {
+            errorFormulario = $"Ya existe un curso con el código {nuevoCurso.Codigo}.";
+            return;
+        }
+
+        Cursos.Add(new CursoItem(
+            nuevoCurso.Codigo.Trim(),
+            nuevoCurso.Nombre.Trim(),
+            nuevoCurso.Descripcion.Trim(),
+            nuevoCurso.Matriculados,
+            nuevoCurso.PrecioXAlumno,
+            nuevoCurso.Estado));
+
+        mostrarModal = false;
+        await GuardarEnLocalAsync();
+    }
+
+    // ===== Eventos que llegan desde CursoCard =====
+    private async Task AlternarEstado(string codigo)
+    {
+        var i = Cursos.FindIndex(c => c.Codigo == codigo);
+        if (i < 0) return;
+        var curso = Cursos[i];
+        // Los record no se modifican: se crea una copia con el estado cambiado
+        Cursos[i] = curso with { Estado = curso.Estado == "Activo" ? "En Revisión" : "Activo" };
+        await GuardarEnLocalAsync();
+    }
+
+    private async Task EliminarCurso(string codigo)
+    {
+        Cursos.RemoveAll(c => c.Codigo == codigo);
+        await GuardarEnLocalAsync();
+    }
+
+    // ===== JavaScript Interop =====
+    private const string ClaveStorage = "techmetrics-cursos";
+    private bool enLinea = true;
+    private string? mensaje;
+    private DotNetObjectReference<Dashboard>? referenciaDotNet;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // 1. Cargar los cursos guardados en localStorage (si hay)
+        var json = await JS.InvokeAsync<string?>("dashboardInterop.leerCursos", ClaveStorage);
+        if (!string.IsNullOrEmpty(json))
+        {
+            var guardados = JsonSerializer.Deserialize<List<CursoItem>>(json);
+            if (guardados != null)
+                Cursos = guardados;
+        }
+
+        // 2. Pasar a JS una referencia a este componente para que nos avise de la red
+        referenciaDotNet = DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("dashboardInterop.iniciarMonitorRed", referenciaDotNet);
+
+        StateHasChanged();
+    }
+
+    // Lo llama JavaScript cuando cambia la conexión
+    [JSInvokable]
+    public Task OnCambioEstadoRed(bool estaEnLinea)
+    {
+        enLinea = estaEnLinea;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CopiarCodigo(string codigo)
+    {
+        var curso = Cursos.FirstOrDefault(c => c.Codigo == codigo);
+        if (curso == null) return;
+
+        var texto = $"{curso.Codigo} - {curso.Nombre} ({curso.Matriculados} alumnos, {curso.PrecioXAlumno:N2} €)";
+        var ok = await JS.InvokeAsync<bool>("dashboardInterop.copiarPortapapeles", texto);
+        mensaje = ok ? $"Copiado al portapapeles: {texto}" : "No se pudo copiar al portapapeles.";
+    }
+
+    private async Task GuardarEnLocalAsync()
+    {
+        var json = JsonSerializer.Serialize(Cursos);
+        await JS.InvokeVoidAsync("dashboardInterop.guardarCursos", ClaveStorage, json);
+    }
+
+    public void Dispose()
+    {
+        referenciaDotNet?.Dispose();
     }
 }
