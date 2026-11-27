@@ -1,7 +1,7 @@
 # Prácticas de Desarrollo Web y Móvil
 
 **Asignatura:** Desarrollo Web y Móvil (DWM)
-**Alumno:** Roberto Castillo — rct419@inlumine.ual.es
+**Alumno:** Roberto Castillo
 
 | Práctica | Tema | Carpeta |
 |---|---|---|
